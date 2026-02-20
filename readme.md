@@ -1,70 +1,80 @@
-# 🚨 India Multi-Modal Crisis Responder
+# 🧠 Life Decision Scenario Simulator
 
-An AI-powered emergency assistance system designed specifically for India that processes text and images to provide calm, step-by-step crisis guidance in real time.
+An AI-powered web application that generates structured, probability-weighted scenario trees for major life decisions.
 
-This system combines a FastAPI backend with an HTML frontend and uses locally running AI models via Ollama for privacy and reliability.
+Users input a significant life choice (e.g., “Move Abroad”), and the AI produces:
 
----
-
-## 🇮🇳 India-Specific Emergency Support
-
-The assistant is configured for Indian emergency services:
-
-- **112** → National Emergency Helpline  
-- **108** → Ambulance  
-- **101** → Fire  
-- **100** → Police (112 preferred if unsure)
-
-The AI always encourages contacting emergency services in serious situations.
+- 🌳 Three scenario branches (Best Case, Realistic Case, Worst Case)
+- 📊 Probability percentages (total = 100%)
+- 💼 Career impact analysis
+- 💰 Financial impact analysis
+- ❤️ Emotional impact analysis
+- 🔮 5-year long-term outlook
 
 ---
 
-## 🚀 Features
+## 🚀 How It Works
 
-- 📝 Text-based emergency description
-- 🖼 Image-based situation analysis (Vision AI)
-- 🧠 Crisis-safe prompt engineering
-- 🇮🇳 India-specific emergency numbers
-- ⚡ FastAPI backend
-- 🌐 Lightweight HTML frontend
-- 🔒 Fully local execution via Ollama
-- 🛡 Safety-first instruction format
-
----
-
-## 🏗 Architecture
-
-User (Text / Image)  
-        ↓  
-HTML Frontend  
-        ↓  
-FastAPI Backend  
-        ↓  
-Vision Model (LLaVA) → Scene Understanding  
-        ↓  
-Text Model (Qwen2.5) → Emergency Guidance  
-        ↓  
-Structured Step-by-Step Response  
+1. User enters a major life decision.
+2. AI analyzes possible future outcomes.
+3. The system generates structured scenario trees with realistic probability weighting.
+4. Results are streamed live in clean markdown format.
 
 ---
 
 ## 🛠 Tech Stack
 
-- FastAPI
-- Uvicorn
-- Ollama
-- Qwen2.5 (Text LLM)
-- LLaVA (Vision Model)
-- Python
-- HTML + JavaScript
+- Streamlit (Frontend UI)
+- Ollama (Local LLM Runtime)
+- LangChain
+- Qwen 2.5 Model
 
 ---
 
 ## 📦 Installation
 
 ### 1️⃣ Install Ollama
+Download from: https://ollama.com
 
-Download from:
-https://ollama.com
+Pull the required model:ollama pull qwen2.5:3b
 
-Pull required models:
+
+### 2️⃣ Install Dependencies
+pip install -r requirements.txt
+
+
+### 3️⃣ Run the Application
+streamlit run app.py
+
+
+---
+
+## 📊 Example Use Cases
+
+- Move abroad for a job
+- Leave a stable job to start a company
+- Pursue higher education
+- Invest savings into a new business
+- Relocate for personal reasons
+
+---
+
+## ⚠ Disclaimer
+
+This tool provides analytical simulations based on probabilistic reasoning. It does not guarantee real-world outcomes. Users should consult professionals for financial, legal, or medical decisions.
+
+---
+
+## 🔥 Future Enhancements
+
+- Recursive multi-level scenario branching
+- Monte Carlo simulation mode
+- Visual decision tree graphs
+- Risk heatmaps
+- Confidence scoring
+- Exportable PDF reports
+- Save decision history
+
+---
+
+Built for structured life planning, strategic thinking, and analytical decision support.
