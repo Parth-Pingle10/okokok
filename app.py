@@ -3,11 +3,12 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 from PIL import Image
 import base64
+import json
 
-st.set_page_config(page_title="Multi-Modal Crisis Responder", layout="wide")
+st.set_page_config(page_title="India Multi-Modal Crisis Responder", layout="wide")
 
-st.title("🚨 Multi-Modal Crisis Responder")
-st.caption("AI emergency assistant for text, voice, and image-based crisis situations")
+st.title("🚨 India Multi-Modal Crisis Responder")
+st.caption("AI Emergency Assistant (Text + Image) — India")
 
 # ==============================
 # MODELS
@@ -15,114 +16,166 @@ st.caption("AI emergency assistant for text, voice, and image-based crisis situa
 
 TEXT_MODEL = "qwen2.5:3b"
 VISION_MODEL = "llava"
-WHISPER_MODEL = "whisper"
 
 @st.cache_resource
 def load_text_model():
-    return ChatOllama(model=TEXT_MODEL, temperature=0.2)
+    return ChatOllama(model=TEXT_MODEL, temperature=0.0)
 
 @st.cache_resource
 def load_vision_model():
-    return ChatOllama(model=VISION_MODEL, temperature=0.2)
+    return ChatOllama(model=VISION_MODEL, temperature=0.0)
 
-text_llm = load_text_model()
+llm = load_text_model()
 vision_llm = load_vision_model()
 
 # ==============================
-# SAFETY SYSTEM PROMPT
+# STAGE 1 — RISK CLASSIFIER
 # ==============================
 
-SYSTEM_PROMPT = """
-You are an AI Emergency Crisis Response Assistant operating in India.
+RISK_PROMPT = """
+You are an emergency triage classifier.
 
-Your role:
-- Provide calm, step-by-step emergency guidance.
-- Prioritize immediate safety.
-- Use simple, clear language.
-- Avoid medical speculation.
-- If unsure, say clearly that you are uncertain.
+Return ONLY valid JSON:
 
-Important:
-- In India, advise calling:
-    • 112 (National Emergency Helpline)
-    • 108 (Ambulance)
-    • 101 (Fire)
-    • 100 (Police — but prefer 112 when possible)
+{
+  "breathing_risk": true/false,
+  "bleeding_risk": true/false,
+  "structural_collapse": true/false,
+  "entrapment": true/false,
+  "fire_risk": true/false,
+  "severity": "Critical" or "Moderate" or "Low"
+}
 
-Always:
-- Encourage contacting emergency services for serious situations.
-- Give practical first-aid instructions only if safe.
-- Never provide dangerous or extreme instructions.
-- Keep tone calm and reassuring.
-
-Format:
-1. Immediate Action
-2. Safety Steps
-3. When to Call Emergency Services
-4. Additional Precautions
+Rules:
+- Structural collapse OR entrapment → severity = Critical
+- Breathing risk → severity = Critical
+- No explanations
+- JSON only
 """
 
 # ==============================
-# INPUT SECTION
+# INPUT
 # ==============================
 
-st.subheader("📝 Describe the Emergency")
-text_input = st.text_area("Type what is happening:")
+text_input = st.text_area("Describe the emergency:")
+image_file = st.file_uploader("Upload image (optional)", type=["png","jpg","jpeg"])
 
-st.subheader("🎤 Voice Input")
-audio_file = st.file_uploader("Upload voice recording (optional)", type=["wav", "mp3"])
+if st.button("Get Emergency Guidance"):
 
-st.subheader("🖼 Upload Image (Optional)")
-image_file = st.file_uploader("Upload accident/injury image", type=["png", "jpg", "jpeg"])
+    combined_input = text_input.strip() if text_input else ""
 
-generate = st.button("Get Emergency Guidance")
-
-# ==============================
-# PROCESSING
-# ==============================
-
-if generate:
-
-    combined_input = ""
-
-    # ---- TEXT ----
-    if text_input:
-        combined_input += f"\nUser description:\n{text_input}\n"
-
-    # ---- IMAGE ----
+    # --------------------------
+    # VISION ANALYSIS
+    # --------------------------
     if image_file:
         image = Image.open(image_file)
         st.image(image, caption="Uploaded Image", use_column_width=True)
 
-        buffered = image_file.read()
-        image_base64 = base64.b64encode(buffered).decode("utf-8")
-
-        vision_prompt = "Describe what is happening in this emergency image clearly."
+        image_bytes = image_file.read()
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         vision_response = vision_llm.invoke(
-            [HumanMessage(content=vision_prompt, additional_kwargs={"images": [image_base64]})]
+            [HumanMessage(
+                content="Describe observable emergency risks only. No speculation.",
+                additional_kwargs={"images": [image_base64]}
+            )]
         )
 
-        combined_input += f"\nImage Analysis:\n{vision_response.content}\n"
+        combined_input += "\n" + vision_response.content
 
-    # ---- VOICE (Optional - Placeholder if no local whisper integration) ----
-    if audio_file:
-        st.warning("Voice transcription requires Whisper integration via Ollama CLI.")
-        combined_input += "\nVoice input provided but transcription not implemented in MVP.\n"
-
-    if not combined_input.strip():
-        st.warning("Please provide text, voice, or image input.")
+    if not combined_input:
+        st.warning("Please provide emergency details.")
         st.stop()
 
-    # ==============================
-    # FINAL CRISIS RESPONSE
-    # ==============================
+    # --------------------------
+    # STAGE 1 — RISK ANALYSIS
+    # --------------------------
+    risk_response = llm.invoke([
+        SystemMessage(content=RISK_PROMPT),
+        HumanMessage(content=combined_input)
+    ])
 
-    final_prompt = f"""
-Situation Details:
-{combined_input}
+    try:
+        risk_data = json.loads(risk_response.content)
+    except:
+        st.error("Risk classification failed.")
+        st.stop()
 
-Provide emergency guidance now.
+    severity = risk_data.get("severity", "Critical")
+
+    # --------------------------
+    # PLAYBOOK SELECTION
+    # --------------------------
+
+    if risk_data.get("structural_collapse") or risk_data.get("entrapment"):
+        emergency_number = "112"
+        playbook = """
+STRUCTURAL COLLAPSE / ENTRAPMENT PROTOCOL:
+- Turn off engine immediately.
+- Check for fuel smell or smoke.
+- Check for heavy bleeding.
+- Avoid sudden neck or spine movement.
+- Conserve phone battery after calling.
+- Use horn briefly every few minutes if safe.
+"""
+    elif risk_data.get("fire_risk"):
+        emergency_number = "101"
+        playbook = """
+FIRE PROTOCOL:
+- Exit immediately if safe.
+- Stay low to avoid smoke.
+- Do not re-enter vehicle.
+"""
+    elif risk_data.get("breathing_risk"):
+        emergency_number = "108"
+        playbook = """
+BREATHING EMERGENCY PROTOCOL:
+- Check airway.
+- Check breathing.
+- Begin CPR if not breathing.
+"""
+    else:
+        emergency_number = "112"
+        playbook = """
+GENERAL CRITICAL INCIDENT PROTOCOL:
+- Ensure scene safety.
+- Check for bleeding.
+- Avoid sudden movement.
+"""
+
+    # --------------------------
+    # STAGE 2 — DISPATCH RESPONSE
+    # --------------------------
+
+    dispatch_prompt = f"""
+You are a trained emergency dispatcher in India.
+
+Risk Analysis:
+{risk_data}
+
+Use this emergency protocol:
+{playbook}
+
+Generate a structured response using:
+
+🚨 SEVERITY LEVEL: {severity}
+
+1️⃣ CALL THIS NUMBER FIRST:
+Call {emergency_number} and explain why.
+
+2️⃣ IMMEDIATE HAZARD CHECK:
+(Only relevant checks)
+
+3️⃣ IMMEDIATE LIFE-SAVING ACTION:
+(Use protocol steps)
+
+4️⃣ STEP-BY-STEP SURVIVAL GUIDANCE:
+(Numbered clear steps)
+
+5️⃣ DO NOT:
+(Realistic safety warnings only)
+
+No filler. No repetition. Be decisive.
 """
 
     st.subheader("🚑 Emergency Guidance")
@@ -130,9 +183,8 @@ Provide emergency guidance now.
     response_placeholder = st.empty()
     full_response = ""
 
-    for chunk in text_llm.stream([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=final_prompt)
+    for chunk in llm.stream([
+        HumanMessage(content=f"Situation:\n{combined_input}\n\n{dispatch_prompt}")
     ]):
         if chunk.content:
             full_response += chunk.content
@@ -140,4 +192,4 @@ Provide emergency guidance now.
 
     response_placeholder.markdown(full_response)
 
-    st.warning("⚠ This AI does not replace professional emergency services. Call your local emergency number immediately in serious situations.")
+    st.error("⚠ This AI does NOT replace professional emergency services. Call 112 immediately in life-threatening situations.")
