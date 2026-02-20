@@ -1,73 +1,143 @@
 import streamlit as st
 from langchain_community.chat_models import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
+from PIL import Image
+import base64
+
+st.set_page_config(page_title="Multi-Modal Crisis Responder", layout="wide")
+
+st.title("🚨 Multi-Modal Crisis Responder")
+st.caption("AI emergency assistant for text, voice, and image-based crisis situations")
 
 # ==============================
-# CONFIG
+# MODELS
 # ==============================
-st.set_page_config(page_title="Digital Habit Architect", layout="centered")
-st.title("🧠 Digital Habit Architect")
-st.caption("Break bad habits using a 5-step Tiny Habits system")
 
-MODEL_NAME = "qwen2.5:3b"
+TEXT_MODEL = "qwen2.5:3b"
+VISION_MODEL = "llava"
+WHISPER_MODEL = "whisper"
 
-# ==============================
-# LOAD MODEL
-# ==============================
 @st.cache_resource
-def load_model():
-    return ChatOllama(
-        model=MODEL_NAME,
-        temperature=0.6
-    )
+def load_text_model():
+    return ChatOllama(model=TEXT_MODEL, temperature=0.2)
 
-llm = load_model()
+@st.cache_resource
+def load_vision_model():
+    return ChatOllama(model=VISION_MODEL, temperature=0.2)
 
-# ==============================
-# USER INPUT
-# ==============================
-bad_habit = st.text_input("What bad habit do you want to break? (e.g., Phone scrolling)")
-goal = st.text_input("What is your goal instead? (e.g., Read 20 minutes daily)")
-
-generate = st.button("Build My Habit Plan")
+text_llm = load_text_model()
+vision_llm = load_vision_model()
 
 # ==============================
-# GENERATE PLAN
+# SAFETY SYSTEM PROMPT
 # ==============================
-if generate:
 
-    if not bad_habit or not goal:
-        st.warning("Please enter both your bad habit and your goal.")
-        st.stop()
+SYSTEM_PROMPT = """
+You are an AI Emergency Crisis Response Assistant operating in India.
 
-    system_prompt = f"""
-You are a behavioral psychology expert specializing in Tiny Habits methodology.
+Your role:
+- Provide calm, step-by-step emergency guidance.
+- Prioritize immediate safety.
+- Use simple, clear language.
+- Avoid medical speculation.
+- If unsure, say clearly that you are uncertain.
 
-The user wants to stop: {bad_habit}
-Their goal is: {goal}
+Important:
+- In India, advise calling:
+    • 112 (National Emergency Helpline)
+    • 108 (Ambulance)
+    • 101 (Fire)
+    • 100 (Police — but prefer 112 when possible)
 
-Generate a practical 5-step Tiny Habits plan.
+Always:
+- Encourage contacting emergency services for serious situations.
+- Give practical first-aid instructions only if safe.
+- Never provide dangerous or extreme instructions.
+- Keep tone calm and reassuring.
 
-Rules:
-- Each step must be small and easy
-- Focus on triggers and environment design
-- Include replacement behavior
-- Keep it realistic and sustainable
-- Use clear step-by-step format
-- Encourage positive reinforcement
+Format:
+1. Immediate Action
+2. Safety Steps
+3. When to Call Emergency Services
+4. Additional Precautions
 """
 
-    st.subheader("📋 Your 5-Step Tiny Habit Plan")
+# ==============================
+# INPUT SECTION
+# ==============================
+
+st.subheader("📝 Describe the Emergency")
+text_input = st.text_area("Type what is happening:")
+
+st.subheader("🎤 Voice Input")
+audio_file = st.file_uploader("Upload voice recording (optional)", type=["wav", "mp3"])
+
+st.subheader("🖼 Upload Image (Optional)")
+image_file = st.file_uploader("Upload accident/injury image", type=["png", "jpg", "jpeg"])
+
+generate = st.button("Get Emergency Guidance")
+
+# ==============================
+# PROCESSING
+# ==============================
+
+if generate:
+
+    combined_input = ""
+
+    # ---- TEXT ----
+    if text_input:
+        combined_input += f"\nUser description:\n{text_input}\n"
+
+    # ---- IMAGE ----
+    if image_file:
+        image = Image.open(image_file)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+
+        buffered = image_file.read()
+        image_base64 = base64.b64encode(buffered).decode("utf-8")
+
+        vision_prompt = "Describe what is happening in this emergency image clearly."
+
+        vision_response = vision_llm.invoke(
+            [HumanMessage(content=vision_prompt, additional_kwargs={"images": [image_base64]})]
+        )
+
+        combined_input += f"\nImage Analysis:\n{vision_response.content}\n"
+
+    # ---- VOICE (Optional - Placeholder if no local whisper integration) ----
+    if audio_file:
+        st.warning("Voice transcription requires Whisper integration via Ollama CLI.")
+        combined_input += "\nVoice input provided but transcription not implemented in MVP.\n"
+
+    if not combined_input.strip():
+        st.warning("Please provide text, voice, or image input.")
+        st.stop()
+
+    # ==============================
+    # FINAL CRISIS RESPONSE
+    # ==============================
+
+    final_prompt = f"""
+Situation Details:
+{combined_input}
+
+Provide emergency guidance now.
+"""
+
+    st.subheader("🚑 Emergency Guidance")
 
     response_placeholder = st.empty()
     full_response = ""
 
-    for chunk in llm.stream([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content="Generate the plan.")
+    for chunk in text_llm.stream([
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=final_prompt)
     ]):
         if chunk.content:
             full_response += chunk.content
             response_placeholder.markdown(full_response + "▌")
 
     response_placeholder.markdown(full_response)
+
+    st.warning("⚠ This AI does not replace professional emergency services. Call your local emergency number immediately in serious situations.")
